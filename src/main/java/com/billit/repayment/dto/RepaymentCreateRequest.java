@@ -7,8 +7,7 @@ import java.math.BigDecimal;
 
 @Getter
 @Setter
-public class RepaymentResponse {
-    private Integer repaymentId;
+public class RepaymentCreateRequest {
     private Integer loanId;
     private Integer investmentId;
     private BigDecimal repaymentPrincipal;
