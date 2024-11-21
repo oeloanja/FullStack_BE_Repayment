@@ -145,7 +145,7 @@ public class RepaymentService {
             RepaymentSuccess success = new RepaymentSuccess();
             success.setRepaymentId(repayment.getRepaymentId());
             success.setPaymentDate(LocalDateTime.now());
-            success.setRepaymentTimes(getLatestRepaymentTimesByLoanId(repayment.getLoanId()));
+            success.setRepaymentTimes(getLatestRepaymentTimesByLoanId(repayment.getLoanId())+1);
             repaymentSuccessRepository.save(success);
 
         } else {
@@ -153,7 +153,7 @@ public class RepaymentService {
             fail.setRepaymentId(repayment.getRepaymentId());
             fail.setPaymentDate(LocalDateTime.now());
             fail.setRepaymentLeft(remainingAmount.abs());
-            fail.setRepaymentTimes(getLatestRepaymentTimesByLoanId(repayment.getLoanId()));
+            fail.setRepaymentTimes(getLatestRepaymentTimesByLoanId(repayment.getLoanId())+1);
             repaymentFailRepository.save(fail);
         }
     }

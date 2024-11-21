@@ -19,7 +19,7 @@ import java.util.List;
 public class RepaymentController {
 
     private final RepaymentService repaymentService;
-    @PostMapping
+    @PostMapping("/create")
     public ResponseEntity<Repayment> createRepayment(@RequestBody RepaymentCreateRequest request) {
         return ResponseEntity.ok(repaymentService.createRepayment(request));
     }
@@ -34,14 +34,14 @@ public class RepaymentController {
         return ResponseEntity.ok(repaymentService.getRepaymentsByLoanId(loanId));
     }
 
-    @GetMapping("/loan/{loanId}/latest")
+    @GetMapping("/loan/{loanId}/latest-date")
     public ResponseEntity<LocalDateTime> getLatestPaymentDateByLoanId(@PathVariable Integer loanId) {
         LocalDateTime latestPaymentDate = repaymentService.getLatestPaymentDateByLoanId(loanId);
         return ResponseEntity.ok(latestPaymentDate);
     }
 
     // 상환 진행 -> 성공/실패 테이블 생성
-    @PostMapping("/process")
+    @PostMapping("/create/repayment-process")
     public ResponseEntity<String> createRepaymentProcess(@RequestBody RepaymentProcessCreateRequest request) {
         repaymentService.createRepaymentProcess(request);
         return ResponseEntity.ok("Repayment processed successfully");
