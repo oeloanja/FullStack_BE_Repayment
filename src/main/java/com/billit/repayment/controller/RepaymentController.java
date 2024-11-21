@@ -2,12 +2,15 @@ package com.billit.repayment.controller;
 
 import com.billit.repayment.domain.Repayment;
 import com.billit.repayment.dto.RepaymentCreateRequest;
+import com.billit.repayment.dto.RepaymentLoanReponse;
+import com.billit.repayment.dto.RepaymentProcessCreateRequest;
 import com.billit.repayment.service.RepaymentService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -27,21 +30,20 @@ public class RepaymentController {
     }
 
     @GetMapping("/loan/{loanId}")
-    public ResponseEntity<List<Repayment>> getRepaymentsByLoanId(@PathVariable Integer loanId) {
+    public ResponseEntity<List<RepaymentLoanReponse>> getRepaymentsByLoanId(@PathVariable Integer loanId) {
         return ResponseEntity.ok(repaymentService.getRepaymentsByLoanId(loanId));
     }
 
-    @GetMapping("/investment/{investmentId}")
-    public ResponseEntity<List<Repayment>> getRepaymentsByInvestmentId(@PathVariable Integer investmentId) {
-        return ResponseEntity.ok(repaymentService.getRepaymentsByInvestmentId(investmentId));
+    @GetMapping("/loan/{loanId}/latest")
+    public ResponseEntity<LocalDateTime> getLatestPaymentDateByLoanId(@PathVariable Integer loanId) {
+        LocalDateTime latestPaymentDate = repaymentService.getLatestPaymentDateByLoanId(loanId);
+        return ResponseEntity.ok(latestPaymentDate);
     }
 
+    // 상환 진행 -> 성공/실패 테이블 생성
     @PostMapping("/process")
-    public ResponseEntity<String> processRepayment(
-            @RequestParam Integer loanId,
-            @RequestParam Integer investmentId,
-            @RequestParam BigDecimal actualRepayment) {
-        repaymentService.processRepayment(loanId, investmentId, actualRepayment);
+    public ResponseEntity<String> createRepaymentProcess(@RequestBody RepaymentProcessCreateRequest request) {
+        repaymentService.createRepaymentProcess(request);
         return ResponseEntity.ok("Repayment processed successfully");
     }
 }

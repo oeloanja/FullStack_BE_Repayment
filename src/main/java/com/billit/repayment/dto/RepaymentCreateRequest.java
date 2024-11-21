@@ -4,15 +4,17 @@ import lombok.Getter;
 import lombok.Setter;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 
 @Getter
 @Setter
 public class RepaymentCreateRequest {
     private Integer loanId;
-    private Integer investmentId;
-    private BigDecimal repaymentPrincipal;
-    private BigDecimal repaymentInterest;
-    private Integer dueDate;
+    private Integer groupId;
+    private BigDecimal loanAmount;
+    private Integer term;
+    private BigDecimal intRate;
+    private LocalDate issueDate;
 }
 
 

@@ -4,6 +4,8 @@ import com.billit.repayment.domain.Repayment;
 import com.billit.repayment.domain.RepaymentFail;
 import com.billit.repayment.domain.RepaymentSuccess;
 import com.billit.repayment.dto.RepaymentCreateRequest;
+import com.billit.repayment.dto.RepaymentLoanReponse;
+import com.billit.repayment.dto.RepaymentProcessCreateRequest;
 import com.billit.repayment.repository.RepaymentFailRepository;
 import com.billit.repayment.repository.RepaymentRepository;
 import com.billit.repayment.repository.RepaymentSuccessRepository;
@@ -12,9 +14,13 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @Service
 @RequiredArgsConstructor
@@ -23,24 +29,17 @@ public class RepaymentService {
     private final RepaymentSuccessRepository repaymentSuccessRepository;
     private final RepaymentFailRepository repaymentFailRepository;
 
-    public Repayment createRepayment(Integer loanId, Integer investmentId) {
-        // LoanServiceClient를 통해 대출 정보 가져오기
-        BigDecimal loanAmount = loanServiceClient.getLoanAmount(loanId);
-        BigDecimal interestRate = loanServiceClient.getInterestRate(loanId);
-        LocalDate issueDate = loanServiceClient.getIssueDate(loanId);
+    //현숙언니가 대출자에게 대출금 입금을 하면서 함께 불러줘야하는 api
+    public Repayment createRepayment(RepaymentCreateRequest request) {
+        BigDecimal repaymentPrincipal = request.getLoanAmount().divide(new BigDecimal(12), 2, RoundingMode.HALF_UP);
+        BigDecimal repaymentInterest = repaymentPrincipal
+                .multiply(request.getIntRate().divide(new BigDecimal(12), 2, RoundingMode.HALF_UP));
 
-        // 상환 데이터 계산
-        BigDecimal repaymentPrincipal = loanAmount.divide(new BigDecimal(12), 2, RoundingMode.HALF_UP);
-        BigDecimal repaymentInterest = repaymentPrincipal.multiply(interestRate)
-                .divide(new BigDecimal(100), 2, RoundingMode.HALF_UP);
+        Integer dueDate = request.getIssueDate().getDayOfMonth();
 
-        // 상환 예정일 계산 (발행일 기준 + 회차)
-        Integer dueDate = issueDate.getDayOfMonth(); // 예: 매월 특정 일
-
-        // Repayment 객체 생성
         Repayment repayment = new Repayment();
-        repayment.setLoanId(loanId);
-        repayment.setInvestmentId(investmentId);
+        repayment.setLoanId(request.getLoanId());
+        repayment.setGroupId(request.getGroupId());
         repayment.setRepaymentPrincipal(repaymentPrincipal);
         repayment.setRepaymentInterest(repaymentInterest);
         repayment.setDueDate(dueDate);
@@ -53,40 +52,108 @@ public class RepaymentService {
         return repaymentRepository.findAll();
     }
 
-    public List<Repayment> getRepaymentsByLoanId(Integer loanId) {
-        return repaymentRepository.findByLoanId(loanId);
+    public List<RepaymentLoanReponse> getRepaymentsByLoanId(Integer loanId) {
+        Repayment repayment = repaymentRepository.findByLoanId(loanId)
+                .orElseThrow(() -> new NoSuchElementException("No Repayment found for loan id: " + loanId));
+
+        List<RepaymentLoanReponse> responses = new ArrayList<>();
+        Integer repaymentId = repayment.getRepaymentId();
+
+        List<RepaymentSuccess> repaymentSuccesses = repaymentSuccessRepository.findRepaymentSuccessByRepaymentId(repaymentId);
+        repaymentSuccesses.forEach(success -> {
+            BigDecimal repaymentAmount = repayment.getRepaymentPrincipal()
+                    .add(repayment.getRepaymentInterest());
+
+            responses.add(RepaymentLoanReponse.builder()
+                    .repaymentTimes(success.getRepaymentTimes())
+                    .paymentDate(success.getPaymentDate())
+                    .repaymentAmount(repaymentAmount)
+                    .isRepaymentSuccess(true)
+                    .build());
+        });
+
+        List<RepaymentFail> repaymentFails = repaymentFailRepository.findRepaymentFailByRepaymentId(repaymentId);
+        repaymentFails.forEach(fail -> {
+            BigDecimal repaymentAmount = repayment.getRepaymentPrincipal()
+                    .add(repayment.getRepaymentInterest())
+                    .subtract(fail.getRepaymentLeft());
+
+            responses.add(RepaymentLoanReponse.builder()
+                    .repaymentTimes(fail.getRepaymentTimes())
+                    .paymentDate(fail.getPaymentDate())
+                    .repaymentAmount(repaymentAmount)
+                    .isRepaymentSuccess(false)
+                    .build());
+        });
+
+        return responses;
     }
 
-    public List<Repayment> getRepaymentsByInvestmentId(Integer investmentId) {
-        return repaymentRepository.findByInvestmentId(investmentId);
+    public LocalDateTime getLatestPaymentDateByLoanId(Integer loanId) {
+        Repayment repayment = repaymentRepository.findByLoanId(loanId)
+                .orElseThrow(() -> new NoSuchElementException("No Repayment found for loan id: " + loanId));
+
+        Integer repaymentId = repayment.getRepaymentId();
+
+        Stream<LocalDateTime> successDates = repaymentSuccessRepository
+                .findRepaymentSuccessByRepaymentId(repaymentId)
+                .stream()
+                .map(RepaymentSuccess::getPaymentDate);
+
+        Stream<LocalDateTime> failDates = repaymentFailRepository
+                .findRepaymentFailByRepaymentId(repaymentId)
+                .stream()
+                .map(RepaymentFail::getPaymentDate);
+
+        return Stream.concat(successDates, failDates)
+                .max(Comparator.naturalOrder()) // 최신 날짜 찾기
+                .orElseThrow(() -> new NoSuchElementException("No payment dates found for loanId: " + loanId));
     }
 
-    public void processRepayment(Integer loanId, Integer investmentId, BigDecimal actualRepayment) {
-        Repayment repayment = repaymentRepository.findByLoanIdAndInvestmentId(loanId, investmentId)
-                .orElseThrow(() -> new IllegalArgumentException("Repayment not found"));
+    public Integer getLatestRepaymentTimesByLoanId(Integer loanId) {
+        Repayment repayment = repaymentRepository.findByLoanId(loanId)
+                .orElseThrow(() -> new NoSuchElementException("No Repayment found for loan id: " + loanId));
 
-        // 상환 원금과 이자를 계산
+        Integer repaymentId = repayment.getRepaymentId();
+
+        Stream<Integer> successRepaymentTimeses = repaymentSuccessRepository
+                .findRepaymentSuccessByRepaymentId(repaymentId)
+                .stream()
+                .map(RepaymentSuccess::getRepaymentTimes);
+
+        Stream<Integer> failRepaymentTimeses = repaymentFailRepository
+                .findRepaymentFailByRepaymentId(repaymentId)
+                .stream()
+                .map(RepaymentFail::getRepaymentTimes);
+
+        return Stream.concat(successRepaymentTimeses, failRepaymentTimeses)
+                .max(Comparator.naturalOrder()) // 최신 날짜 찾기
+                .orElseThrow(() -> new NoSuchElementException("No repayment times found for loanId: " + loanId));
+    }
+
+    // 여기서 depositSettlementAmount 호출해야 함!!
+    public void createRepaymentProcess(RepaymentProcessCreateRequest request) {
+        Repayment repayment = repaymentRepository.findByLoanId(request.getLoanId())
+                .orElseThrow(() -> new NoSuchElementException("No Repayment found for loan id: " + request.getLoanId()));
+
         BigDecimal expectedTotal = repayment.getRepaymentPrincipal()
                 .add(repayment.getRepaymentInterest());
 
-        // 잔액 계산
-        BigDecimal remainingAmount = actualRepayment.subtract(expectedTotal);
+        BigDecimal remainingAmount = request.getActualRepaymentAmount().subtract(expectedTotal);
 
         if (remainingAmount.compareTo(BigDecimal.ZERO) >= 0) {
-            // 상환 성공
             RepaymentSuccess success = new RepaymentSuccess();
             success.setRepaymentId(repayment.getRepaymentId());
             success.setPaymentDate(LocalDateTime.now());
-            success.setRepaymentTimes(repayment.getDueDate()); // 회차 처리
+            success.setRepaymentTimes(getLatestRepaymentTimesByLoanId(repayment.getLoanId()));
             repaymentSuccessRepository.save(success);
 
         } else {
-            // 상환 실패
             RepaymentFail fail = new RepaymentFail();
             fail.setRepaymentId(repayment.getRepaymentId());
             fail.setPaymentDate(LocalDateTime.now());
-            fail.setRepaymentLeft(remainingAmount.abs()); // 남은 금액을 양수로 저장
-            fail.setRepaymentTimes(repayment.getDueDate()); // 회차 처리
+            fail.setRepaymentLeft(remainingAmount.abs());
+            fail.setRepaymentTimes(getLatestRepaymentTimesByLoanId(repayment.getLoanId()));
             repaymentFailRepository.save(fail);
         }
     }

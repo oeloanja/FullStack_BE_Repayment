@@ -15,7 +15,7 @@ public class Repayment {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Integer repaymentId;
 
-    private Integer investmentId;
+    private Integer groupId;
     private Integer loanId;
     private BigDecimal repaymentPrincipal;
     private BigDecimal repaymentInterest;

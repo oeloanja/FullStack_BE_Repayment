@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 @Setter
 public class RepaymentSuccess {
     @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer repaymentSuccessId;
     private Integer repaymentId;
 
     private LocalDateTime paymentDate;
