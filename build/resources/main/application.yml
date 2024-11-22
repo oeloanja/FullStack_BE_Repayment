@@ -1,8 +1,8 @@
 spring:
   application:
-    name: repayment
+    name: repayment-service
   datasource:
-    url: jdbc:postgresql://localhost:5432/repayment_service
+    url: jdbc:postgresql://localhost:5433/repayment_service
     username: joyeeun
     password: dPdmsdk?0928
     driver-class-name: org.postgresql.Driver
@@ -12,5 +12,10 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka
+
 server:
-  port: 8081
+  port: 8082

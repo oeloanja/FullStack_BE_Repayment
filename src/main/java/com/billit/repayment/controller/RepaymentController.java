@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/v1/repayments")
+@RequestMapping("/api/v1/repayment-service")
 @RequiredArgsConstructor
 public class RepaymentController {
 
