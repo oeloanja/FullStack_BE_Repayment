@@ -1,5 +1,11 @@
 package com.billit.repayment.service;
 
+import com.billit.repayment.connect.investment.client.InvestmentServiceClient;
+import com.billit.repayment.connect.investment.dto.InvestmentServiceRequestDTO;
+import com.billit.repayment.connect.loan.client.LoanServiceClient;
+import com.billit.repayment.connect.loan.dto.RepaymentResponseDto;
+import com.billit.repayment.connect.user.client.BorrowTransactionServiceClient;
+import com.billit.repayment.connect.user.dto.UserServiceRequestDto;
 import com.billit.repayment.domain.Repayment;
 import com.billit.repayment.domain.RepaymentFail;
 import com.billit.repayment.domain.RepaymentSuccess;
@@ -9,25 +15,27 @@ import com.billit.repayment.dto.RepaymentProcessCreateRequest;
 import com.billit.repayment.repository.RepaymentFailRepository;
 import com.billit.repayment.repository.RepaymentRepository;
 import com.billit.repayment.repository.RepaymentSuccessRepository;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.stream.Collectors;
+import java.util.*;
 import java.util.stream.Stream;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 public class RepaymentService {
     private final RepaymentRepository repaymentRepository;
     private final RepaymentSuccessRepository repaymentSuccessRepository;
     private final RepaymentFailRepository repaymentFailRepository;
+    private final BorrowTransactionServiceClient borrowTransactionServiceClient;
+    private final LoanServiceClient loanServiceClient;
+    private final InvestmentServiceClient investmentServiceClient;
 
     //현숙언니가 대출자에게 대출금 입금을 하면서 함께 불러줘야하는 api
     public Repayment createRepayment(RepaymentCreateRequest request) {
@@ -131,13 +139,51 @@ public class RepaymentService {
                 .orElseThrow(() -> new NoSuchElementException("No repayment times found for loanId: " + loanId));
     }
 
-    // 여기서 depositSettlementAmount 호출해야 함!!
+    public BigDecimal getLatestRepaymentLeft(Integer loanId) {
+        Repayment repayment = repaymentRepository.findByLoanId(loanId)
+                .orElseThrow(() -> new NoSuchElementException("No Repayment found for loan id: " + loanId));
+
+        Integer repaymentId = repayment.getRepaymentId();
+
+        List<RepaymentSuccess> repaymentSuccesses = repaymentSuccessRepository.findRepaymentSuccessByRepaymentId(repaymentId);
+        List<RepaymentFail> repaymentFails = repaymentFailRepository.findRepaymentFailByRepaymentId(repaymentId);
+        Map<Integer, BigDecimal> repaymentRecords = new HashMap<>();
+
+        repaymentSuccesses.forEach(success -> repaymentRecords.put(success.getRepaymentTimes(), BigDecimal.ZERO));
+        repaymentFails.forEach(fail -> repaymentRecords.put(fail.getRepaymentTimes(), fail.getRepaymentLeft()));
+
+        return repaymentRecords.entrySet().stream()
+                .max(Map.Entry.comparingByKey())
+                .map(Map.Entry::getValue)
+                .orElseThrow(() -> new NoSuchElementException("No repayment records found for loanId: " + loanId));
+    }
+
+    // 대출자 상환금 출금
+    private void withdrawRepaymentAmount(Integer loanId, BigDecimal amount) {
+        RepaymentResponseDto repaymentResponseDto= loanServiceClient.getLoanUserById(loanId);
+        Integer userBorrowId = repaymentResponseDto.getUserBorrowId();
+        Integer accountBorrowId = repaymentResponseDto.getAccountBorrowId();
+        String description = "ID: " + userBorrowId + "에서 " + amount + "만큼 출금 처리되었습니다.";
+        UserServiceRequestDto request = new UserServiceRequestDto(accountBorrowId, amount, description);
+        borrowTransactionServiceClient.withdrawBorrowAccount(Long.valueOf(userBorrowId), request);
+    }
+
+    // 여기서 depositSettlementAmount, withdrawRepaymentAmount 호출!
+    @Transactional
     public void createRepaymentProcess(RepaymentProcessCreateRequest request) {
         Repayment repayment = repaymentRepository.findByLoanId(request.getLoanId())
                 .orElseThrow(() -> new NoSuchElementException("No Repayment found for loan id: " + request.getLoanId()));
 
-        BigDecimal expectedTotal = repayment.getRepaymentPrincipal()
-                .add(repayment.getRepaymentInterest());
+        //대출자에게서 상환금 출금
+        withdrawRepaymentAmount(request.getLoanId(), request.getActualRepaymentAmount());
+
+        // 원금, 이자 활용 계산
+        BigDecimal repaymentPrincipal = repayment.getRepaymentPrincipal();
+        BigDecimal repaymentInterest = repayment.getRepaymentInterest();
+
+        BigDecimal expectedTotal = repaymentPrincipal
+                .add(repaymentInterest)
+                .add(getLatestRepaymentLeft(request.getLoanId()));
 
         BigDecimal remainingAmount = request.getActualRepaymentAmount().subtract(expectedTotal);
 
@@ -148,13 +194,21 @@ public class RepaymentService {
             success.setRepaymentTimes(getLatestRepaymentTimesByLoanId(repayment.getLoanId())+1);
             repaymentSuccessRepository.save(success);
 
-        } else {
+            // 투자자에게 정산금 입금
+            InvestmentServiceRequestDTO investmentServiceRequestDTO = new InvestmentServiceRequestDTO(request.getLoanId(), repaymentPrincipal, repaymentInterest);
+            investmentServiceClient.depositSettlementAmount(investmentServiceRequestDTO);
+        }
+        else {
             RepaymentFail fail = new RepaymentFail();
             fail.setRepaymentId(repayment.getRepaymentId());
             fail.setPaymentDate(LocalDateTime.now());
             fail.setRepaymentLeft(remainingAmount.abs());
             fail.setRepaymentTimes(getLatestRepaymentTimesByLoanId(repayment.getLoanId())+1);
             repaymentFailRepository.save(fail);
+
+            // 투자자에게 정산금 입금
+            InvestmentServiceRequestDTO investmentServiceRequestDTO = new InvestmentServiceRequestDTO(request.getLoanId(), repaymentPrincipal, repaymentInterest.add(remainingAmount));
+            investmentServiceClient.depositSettlementAmount(investmentServiceRequestDTO);
         }
     }
 }
