@@ -2,7 +2,7 @@ spring:
   application:
     name: repayment-service
   datasource:
-    url: jdbc:postgresql://localhost:5433/repayment_service
+    url: jdbc:postgresql://postgres-repayment:5433/repayment_service
     username: joyeeun
     password: dPdmsdk?0928
     driver-class-name: org.postgresql.Driver
