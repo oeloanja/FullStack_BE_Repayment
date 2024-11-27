@@ -181,9 +181,14 @@ public class RepaymentService {
         BigDecimal repaymentPrincipal = repayment.getRepaymentPrincipal();
         BigDecimal repaymentInterest = repayment.getRepaymentInterest();
 
-        BigDecimal expectedTotal = repaymentPrincipal
-                .add(repaymentInterest)
-                .add(getLatestRepaymentLeft(request.getLoanId()));
+        BigDecimal expectedTotal = repaymentPrincipal.add(repaymentInterest);
+        Integer repaymentId = 1;
+
+        // 상환 내역이 존재하는 경우
+        if(!getRepaymentsByLoanId(request.getLoanId()).isEmpty()){
+            expectedTotal = expectedTotal.add(getLatestRepaymentLeft(request.getLoanId()));
+            repaymentId += getLatestRepaymentTimesByLoanId(repayment.getLoanId());
+        }
 
         BigDecimal remainingAmount = request.getActualRepaymentAmount().subtract(expectedTotal);
 
@@ -191,11 +196,11 @@ public class RepaymentService {
             RepaymentSuccess success = new RepaymentSuccess();
             success.setRepaymentId(repayment.getRepaymentId());
             success.setPaymentDate(LocalDateTime.now());
-            success.setRepaymentTimes(getLatestRepaymentTimesByLoanId(repayment.getLoanId())+1);
+            success.setRepaymentTimes(repaymentId);
             repaymentSuccessRepository.save(success);
 
             // 투자자에게 정산금 입금
-            InvestmentServiceRequestDTO investmentServiceRequestDTO = new InvestmentServiceRequestDTO(request.getLoanId(), repaymentPrincipal, repaymentInterest);
+            InvestmentServiceRequestDTO investmentServiceRequestDTO = new InvestmentServiceRequestDTO(repayment.getGroupId(), repaymentPrincipal, repaymentInterest);
             investmentServiceClient.depositSettlementAmount(investmentServiceRequestDTO);
         }
         else {
@@ -203,11 +208,11 @@ public class RepaymentService {
             fail.setRepaymentId(repayment.getRepaymentId());
             fail.setPaymentDate(LocalDateTime.now());
             fail.setRepaymentLeft(remainingAmount.abs());
-            fail.setRepaymentTimes(getLatestRepaymentTimesByLoanId(repayment.getLoanId())+1);
+            fail.setRepaymentTimes(repaymentId);
             repaymentFailRepository.save(fail);
 
             // 투자자에게 정산금 입금
-            InvestmentServiceRequestDTO investmentServiceRequestDTO = new InvestmentServiceRequestDTO(request.getLoanId(), repaymentPrincipal, repaymentInterest.add(remainingAmount));
+            InvestmentServiceRequestDTO investmentServiceRequestDTO = new InvestmentServiceRequestDTO(repayment.getGroupId(), repaymentPrincipal, repaymentInterest.add(remainingAmount));
             investmentServiceClient.depositSettlementAmount(investmentServiceRequestDTO);
         }
     }
