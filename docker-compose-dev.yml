@@ -25,10 +25,10 @@ services:
     environment:
       - MYSQL_ROOT_PASSWORD=1234
       - MYSQL_DATABASE=user_service
-    volumes:
-      - mysql-user-data:/var/lib/mysql
     networks:
       - msa-network
+    volumes:
+      - mysql-user-data:/var/lib/mysql
     healthcheck:
       test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       interval: 30s
@@ -241,9 +241,11 @@ services:
 
   repayment-service:
     container_name: repayment-service
-    platform: linux/amd64
-    image: sooook/repayment-service:latest
-    restart: on-failure
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./src:/app/src
     ports:
       - "8082:8082"
     environment:
@@ -255,7 +257,6 @@ services:
       - LOAN_GROUP_SERVICE_URL=http://loan-group-service:8084
       - USER_SERVICE_URL=http://user-service:8085
       - INVEST_SERVICE_URL=http://invest-service:8081
-      #      - REPAYMENT_SERVICE_URL=http://repayment-service:8082
       - LOAN_SERVICE_URL=http://loan-service:8083
     networks:
       - msa-network
