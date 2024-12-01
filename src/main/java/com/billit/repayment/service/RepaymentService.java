@@ -39,9 +39,16 @@ public class RepaymentService {
 
     //현숙언니가 대출자에게 대출금 입금을 하면서 함께 불러줘야하는 api
     public Repayment createRepayment(RepaymentCreateRequest request) {
-        BigDecimal repaymentPrincipal = request.getLoanAmount().divide(BigDecimal.valueOf(request.getTerm()), 2, RoundingMode.HALF_UP);
-        BigDecimal repaymentInterest = repaymentPrincipal
-                .multiply(request.getIntRate().divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP).divide(new BigDecimal("12"), 2, RoundingMode.HALF_UP));
+        BigDecimal loanAmount = request.getLoanAmount();
+        BigDecimal term = BigDecimal.valueOf(request.getTerm());
+        BigDecimal intrate = request.getIntRate().divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+
+        BigDecimal repaymentPrincipal = loanAmount
+                .divide(term, 2, RoundingMode.HALF_UP);
+        BigDecimal repaymentInterest = loanAmount
+                .multiply(intrate.divide(term, 6, RoundingMode.HALF_UP))
+                .multiply(term.divide(new BigDecimal("12"), 6, RoundingMode.HALF_UP))
+                .divide(term, 2, RoundingMode.HALF_UP);
 
         Integer dueDate = request.getIssueDate().getDayOfMonth();
 
