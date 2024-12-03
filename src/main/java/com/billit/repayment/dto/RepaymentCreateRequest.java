@@ -1,5 +1,6 @@
 package com.billit.repayment.dto;
 
+import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -8,6 +9,7 @@ import java.time.LocalDate;
 
 @Getter
 @Setter
+@AllArgsConstructor
 public class RepaymentCreateRequest {
     private Integer loanId;
     private Integer groupId;
