@@ -1,7 +1,7 @@
 package com.billit.repayment.kafka.consumer;
 
-import com.billit.common.event.RepaymentScheduleEvent;
 import com.billit.repayment.dto.RepaymentCreateRequest;
+import com.billit.repayment.kafka.event.RepaymentScheduleEvent;
 import com.billit.repayment.service.RepaymentService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

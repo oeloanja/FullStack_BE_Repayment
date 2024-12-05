@@ -1,6 +1,6 @@
 package com.billit.repayment.kafka.config;
 
-import com.billit.common.event.RepaymentScheduleEvent;
+import com.billit.repayment.kafka.event.RepaymentScheduleEvent;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.common.serialization.StringDeserializer;
@@ -34,7 +34,8 @@ public class KafkaConfig {
         props.put(ConsumerConfig.GROUP_ID_CONFIG, groupId);
         props.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
         props.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
-        props.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, JsonDeserializer.class);
+        props.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, CustomJsonDeserializer.class);
+        props.put("value.deserializer.type", RepaymentScheduleEvent.class);
         props.put(JsonDeserializer.TRUSTED_PACKAGES, "*");
         return props;
     }
@@ -42,7 +43,9 @@ public class KafkaConfig {
     @Bean
     public ConsumerFactory<String, RepaymentScheduleEvent> repaymentScheduleEventConsumerFactory() {
         return new DefaultKafkaConsumerFactory<>(
-                consumerConfigs()
+                consumerConfigs(),
+                new StringDeserializer(),
+                new CustomJsonDeserializer<>(RepaymentScheduleEvent.class)
         );
     }
 
