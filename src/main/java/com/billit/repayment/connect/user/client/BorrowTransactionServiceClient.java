@@ -8,12 +8,14 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestParam;
 
+import java.util.UUID;
+
 @FeignClient(name = "USER-SERVICE",
         configuration = FeignConfig.class,
         path = "/api/v1/user-service", url = "${feign.client.config.user-service.url}")
 public interface BorrowTransactionServiceClient {
     @PostMapping("/accounts/transaction/borrow/withdraw")
-    ResponseEntity<String> withdrawBorrowAccount(@RequestParam Long userId,
+    ResponseEntity<String> withdrawBorrowAccount(@RequestParam UUID userId,
                                             @RequestBody UserServiceRequestDto request);
 }
 

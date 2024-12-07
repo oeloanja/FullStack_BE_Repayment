@@ -168,11 +168,11 @@ public class RepaymentService {
     // 대출자 상환금 출금
     private void withdrawRepaymentAmount(Integer loanId, BigDecimal amount) {
         RepaymentResponseDto repaymentResponseDto= loanServiceClient.getLoanUserById(loanId);
-        Integer userBorrowId = repaymentResponseDto.getUserBorrowId();
+        UUID userBorrowId = repaymentResponseDto.getUserBorrowId();
         Integer accountBorrowId = repaymentResponseDto.getAccountBorrowId();
         String description = "ID: " + userBorrowId + "에서 " + amount + "만큼 출금 처리되었습니다.";
         UserServiceRequestDto request = new UserServiceRequestDto(accountBorrowId, amount, description);
-        borrowTransactionServiceClient.withdrawBorrowAccount(Long.valueOf(userBorrowId), request);
+        borrowTransactionServiceClient.withdrawBorrowAccount(userBorrowId, request);
     }
 
     // 여기서 depositSettlementAmount, withdrawRepaymentAmount 호출!

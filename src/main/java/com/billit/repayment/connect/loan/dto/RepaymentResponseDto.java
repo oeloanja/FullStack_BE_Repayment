@@ -4,10 +4,12 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
+import java.util.UUID;
+
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
 public class RepaymentResponseDto {
-    private Integer userBorrowId;
+    private UUID userBorrowId;
     private Integer accountBorrowId;
 }
