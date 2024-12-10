@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS repayment (
     repayment_principal DECIMAL(15, 2) NOT NULL,
     repayment_interest DECIMAL(15, 2) NOT NULL,
     due_date INT NOT NULL,
+    term INT NOT NULL,
     created_at TIMESTAMP NOT NULL
 );
 
