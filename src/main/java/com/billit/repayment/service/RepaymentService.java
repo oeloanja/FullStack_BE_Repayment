@@ -41,14 +41,14 @@ public class RepaymentService {
     public Repayment createRepayment(RepaymentCreateRequest request) {
         BigDecimal loanAmount = request.getLoanAmount();
         BigDecimal term = BigDecimal.valueOf(request.getTerm());
-        BigDecimal intrate = request.getIntRate().divide(new BigDecimal("100"), 2, RoundingMode.HALF_UP);
+        BigDecimal intrate = request.getIntRate().divide(new BigDecimal("100"), 0, RoundingMode.HALF_UP);
 
         BigDecimal repaymentPrincipal = loanAmount
-                .divide(term, 2, RoundingMode.HALF_UP);
+                .divide(term, 0, RoundingMode.HALF_UP);
         BigDecimal repaymentInterest = loanAmount
-                .multiply(intrate.divide(term, 6, RoundingMode.HALF_UP))
-                .multiply(term.divide(new BigDecimal("12"), 6, RoundingMode.HALF_UP))
-                .divide(term, 2, RoundingMode.HALF_UP);
+                .multiply(intrate.divide(term, 0, RoundingMode.HALF_UP))
+                .multiply(term.divide(new BigDecimal("12"), 0, RoundingMode.HALF_UP))
+                .divide(term, 0, RoundingMode.HALF_UP);
 
         Integer dueDate = request.getIssueDate().getDayOfMonth();
 
