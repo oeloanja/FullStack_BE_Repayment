@@ -1,8 +1,10 @@
 package com.billit.repayment.service;
 
+import com.billit.repayment.connect.investment.client.InvestStatusType;
 import com.billit.repayment.connect.investment.client.InvestmentServiceClient;
 import com.billit.repayment.connect.investment.dto.InvestmentServiceRequestDTO;
 import com.billit.repayment.connect.loan.client.LoanServiceClient;
+import com.billit.repayment.connect.loan.dto.LoanStatusRequestDto;
 import com.billit.repayment.connect.loan.dto.RepaymentResponseDto;
 import com.billit.repayment.connect.user.client.BorrowTransactionServiceClient;
 import com.billit.repayment.connect.user.dto.UserServiceRequestDto;
@@ -58,6 +60,7 @@ public class RepaymentService {
         repayment.setRepaymentPrincipal(repaymentPrincipal);
         repayment.setRepaymentInterest(repaymentInterest);
         repayment.setDueDate(dueDate);
+        repayment.setTerm(request.getTerm());
         repayment.setCreatedAt(LocalDateTime.now());
 
         return repaymentRepository.save(repayment);
@@ -189,12 +192,12 @@ public class RepaymentService {
         BigDecimal repaymentInterest = repayment.getRepaymentInterest();
 
         BigDecimal expectedTotal = repaymentPrincipal.add(repaymentInterest);
-        Integer repaymentId = 1;
+        Integer repaymentTimes = 1;
 
         // 상환 내역이 존재하는 경우
         if(!getRepaymentsByLoanId(request.getLoanId()).isEmpty()){
             expectedTotal = expectedTotal.add(getLatestRepaymentLeft(request.getLoanId()));
-            repaymentId += getLatestRepaymentTimesByLoanId(repayment.getLoanId());
+            repaymentTimes += getLatestRepaymentTimesByLoanId(repayment.getLoanId());
         }
 
         BigDecimal remainingAmount = request.getActualRepaymentAmount().subtract(expectedTotal);
@@ -203,24 +206,40 @@ public class RepaymentService {
             RepaymentSuccess success = new RepaymentSuccess();
             success.setRepaymentId(repayment.getRepaymentId());
             success.setPaymentDate(LocalDateTime.now());
-            success.setRepaymentTimes(repaymentId);
+            success.setRepaymentTimes(repaymentTimes);
             repaymentSuccessRepository.save(success);
 
             // 투자자에게 정산금 입금
             InvestmentServiceRequestDTO investmentServiceRequestDTO = new InvestmentServiceRequestDTO(repayment.getGroupId(), repaymentPrincipal, repaymentInterest);
             investmentServiceClient.depositSettlementAmount(investmentServiceRequestDTO);
+
+            // 상환 완료시 대출 상태 업데이트
+            if(repayment.getTerm() == repaymentTimes) {
+                loanServiceClient.updateLoanStatus(new LoanStatusRequestDto(request.getLoanId(), 2));
+                if(!loanServiceClient.isLoanGroupStatusExecuting(repayment.getGroupId())){
+                    investmentServiceClient.updateInvestmentStatusByGroupId(repayment.getGroupId(), InvestStatusType.COMPLETED);
+                }
+            }
         }
         else {
             RepaymentFail fail = new RepaymentFail();
             fail.setRepaymentId(repayment.getRepaymentId());
             fail.setPaymentDate(LocalDateTime.now());
             fail.setRepaymentLeft(remainingAmount.abs());
-            fail.setRepaymentTimes(repaymentId);
+            fail.setRepaymentTimes(repaymentTimes);
             repaymentFailRepository.save(fail);
 
             // 투자자에게 정산금 입금
             InvestmentServiceRequestDTO investmentServiceRequestDTO = new InvestmentServiceRequestDTO(repayment.getGroupId(), repaymentPrincipal, repaymentInterest.add(remainingAmount));
             investmentServiceClient.depositSettlementAmount(investmentServiceRequestDTO);
+
+            // 상환 완료시 대출 상태 업데이트
+            if(repayment.getTerm() == repaymentTimes) {
+                loanServiceClient.updateLoanStatus(new LoanStatusRequestDto(request.getLoanId(), 3));
+                if(!loanServiceClient.isLoanGroupStatusExecuting(repayment.getGroupId())){
+                    investmentServiceClient.updateInvestmentStatusByGroupId(repayment.getGroupId(), InvestStatusType.COMPLETED);
+                }
+            }
         }
     }
 }

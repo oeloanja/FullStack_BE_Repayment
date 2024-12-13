@@ -20,6 +20,7 @@ public class Repayment {
     private BigDecimal repaymentPrincipal;
     private BigDecimal repaymentInterest;
     private Integer dueDate;
+    private Integer term;
 
     @Column(updatable = false)
     private LocalDateTime createdAt;
